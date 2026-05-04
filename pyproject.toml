@@ -1,0 +1,22 @@
+[project]
+name = "call-me-maybe"
+version = "1.0.0"
+readme = "README.md"
+authors = [
+    { name = "dsalwa", email = "dsalwa@student.42warsaw.pl"}
+]
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.0.0",
+    "numpy>=1.20.0",
+]
+
+[tool.uv]
+managed = true
+
+[tool.mypy]
+python_version = "3.10"
+disallow_untyped_defs = true
+check_untyped_defs = true
+warn_return_any = true
+ignore_missing_imports = true
