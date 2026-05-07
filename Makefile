@@ -2,14 +2,14 @@ install: pyproject.toml uv.lock
 	uv sync
 
 run:
-	uv run python -m src/main.py
+	uv run python -m src.main
 
 # Trzeba zrobić jeszcze debug
 debug:
 
 clean:
-	rm -rf __pycache__
-	rm -rf .mypy_cache
+	find . -type d -name "__pycache__" -exec rm -rf {} +
+	find . -type d -name ".mypy_cache" -exec rm -rf {} +
 
 lint:
 	flake8 --exclude .venv,llm_sdk .
