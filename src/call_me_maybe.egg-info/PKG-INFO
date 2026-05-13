@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: call-me-maybe
+Version: 1.0.0
+Author-email: dsalwa <dsalwa@student.42warsaw.pl>
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: numpy>=1.20.0
+Requires-Dist: llm-sdk @ file:./llm_sdk
+
+# call_me_maybe_42

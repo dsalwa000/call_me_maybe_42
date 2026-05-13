@@ -9,8 +9,11 @@ requires-python = ">=3.10"
 dependencies = [
     "pydantic>=2.0.0",
     "numpy>=1.20.0",
-    "llm_sdk"
+    "llm-sdk"
 ]
+
+[tool.uv.sources]
+"llm-sdk" = { path = "llm_sdk" }
 
 [tool.mypy]
 disallow_untyped_defs = true

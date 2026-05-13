@@ -1,10 +1,10 @@
 from argparse import ArgumentParser
 from typing import TypeAlias
+from llm_sdk import Small_LLM_Model
 import json
 
 Paths: TypeAlias = tuple[str, str, str]
 Input: TypeAlias = dict[str, str]
-
 
 def parser() -> Paths:
     arg_parser = ArgumentParser(description="Call Me Maybe")
@@ -34,5 +34,14 @@ if __name__ == "__main__":
     with open(input_path, "r") as file:
         input = json.load(file)
 
-    print_data("Definitions", definitions)
-    print_data("Input", input)
+    llm_model = Small_LLM_Model()
+
+    first = input[0]['prompt']
+
+    # Aktualnie trzeba stworzyć maszynę stanu FSM Finite State Machine
+
+    # print("First")
+    # print(llm_model.encode(first))
+
+    # print_data("Definitions", definitions)
+    # print_data("Input", input)
