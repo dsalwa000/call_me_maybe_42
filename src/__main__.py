@@ -6,6 +6,7 @@ import json
 Paths: TypeAlias = tuple[str, str, str]
 Input: TypeAlias = dict[str, str]
 
+
 def parser() -> Paths:
     arg_parser = ArgumentParser(description="Call Me Maybe")
 
@@ -40,8 +41,8 @@ if __name__ == "__main__":
 
     # Aktualnie trzeba stworzyć maszynę stanu FSM Finite State Machine
 
-    # print("First")
-    # print(llm_model.encode(first))
+    print("First")
+    print(llm_model.encode(first))
 
-    # print_data("Definitions", definitions)
-    # print_data("Input", input)
+    print_data("Definitions", definitions)
+    print_data("Input", input)
