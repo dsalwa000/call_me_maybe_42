@@ -3,6 +3,7 @@
 
 .mypy_cache
 __pycache__
+call_me_maybe.egg-info
 
 .venv
 
