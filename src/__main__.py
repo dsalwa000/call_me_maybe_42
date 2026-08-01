@@ -95,4 +95,6 @@ if __name__ == "__main__":
     with open(vocab_path, "r") as file:
         vocab = json.load(file)
 
-    execute_prompts(input_data, functions_def)
+    print(vocab['{'])
+
+    execute_prompts(input_data[:1], functions_def)
