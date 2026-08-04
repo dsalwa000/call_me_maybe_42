@@ -1,7 +1,7 @@
 import json
 from argparse import ArgumentParser
 
-from numpy import argmax
+from numpy import argmax, array, full, inf
 
 from llm_sdk import Small_LLM_Model
 
@@ -31,7 +31,7 @@ def build_final_prompt(user_prompt: str, functions_def: list[dict]) -> str:
         "User Prompt:\n"
         f"{user_prompt}\n\n"
         "Response:\n"
-        f'{{"prompt": "{user_prompt}", "name": "fn_'
+        f'{{"prompt": "{user_prompt}", "name": "fn'
     )
 
 
@@ -41,6 +41,16 @@ def build_vocab_id_str(vocab: dict[str, int]) -> dict[int, str]:
 
 def force_text(ids: list[int], text: str) -> list[int]:
     ids.extend(llm_model.encode(text)[0])
+
+
+def mask_logits(loits: list[float], allowed_ids: list[int]) -> list[int]:
+    arr = array(loits)
+    masked = full(arr.shape, -inf)
+
+    if allowed_ids:
+        masked[allowed_ids] = arr[allowed_ids]
+
+    return masked.tolist()
 
 
 def parser() -> Paths:
@@ -89,7 +99,6 @@ def execute_prompts(input_data: list[str], functions_def: list[dict]):
         print(f"\nFinal: {decoded}")
 
 
-# Funkcja tolist() tworzy listę z torch.Tensor
 if __name__ == "__main__":
     llm_model = Small_LLM_Model()
     definitions_path, input_path, output_path = parser()
@@ -109,15 +118,37 @@ if __name__ == "__main__":
 
     final_prompt: str = build_final_prompt(prompt, functions_def)
     response: str = final_prompt.splitlines()[-1]
-    ids: list[int] = llm_model.encode(final_prompt).tolist()[0]
+    response_ids: list[int] = llm_model.encode(response).tolist()[0]
+    prompt_ids: list[int] = llm_model.encode(final_prompt).tolist()[0]
+    last_tokon_index: int = len(prompt_ids) - 1
 
-    names = [definition['name'] for definition in functions_def]
-    names_allowed_tokens = {letter for name in names for letter in name}
-    names_allowed_ids = [vocab[token] for token in names_allowed_tokens]
+    functions_ids: list[list[int]] = [
+        llm_model.encode(definition['name']).tolist()[0][1:]
+        for definition in functions_def
+    ]
+    max_len = max(len(f) for f in functions_ids)
 
-    # print(names_allowed_tokens)
-    # print(names_allowed_ids)
-    # print(response)
-    print(vocab['fn'])
+    sorted_by_position: list[list[int]] = [[] for _ in range(max_len)]
 
-    # execute_prompts(input_data[:1], functions_def)
+    for function_ids in functions_ids:
+        sorted_by_position[0].append(function_ids[0])
+
+    for position in range(len(sorted_by_position) - 1):
+        logits: list[float] = llm_model.get_logits_from_input_ids(prompt_ids)
+        masked_logits: list[int] = mask_logits(
+            logits, sorted_by_position[position]
+            )
+        next_token_id: int = int(argmax(masked_logits))
+
+        prompt_ids.append(next_token_id)
+        response_ids.append(next_token_id)
+
+        for index, function_ids in enumerate(functions_ids):
+            if (
+                position + 1 < len(function_ids)
+                and next_token_id == function_ids[position]
+            ):
+                token_id = function_ids[position + 1]
+                sorted_by_position[position + 1].append(token_id)
+
+    print(llm_model.decode(response_ids))
