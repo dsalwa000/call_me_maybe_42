@@ -31,8 +31,16 @@ def build_final_prompt(user_prompt: str, functions_def: list[dict]) -> str:
         "User Prompt:\n"
         f"{user_prompt}\n\n"
         "Response:\n"
-        f'{{"prompt": "{user_prompt}", "name": '
+        f'{{"prompt": "{user_prompt}", "name": "fn_'
     )
+
+
+def build_vocab_id_str(vocab: dict[str, int]) -> dict[int, str]:
+    return {token_id: tok.replace("Ġ", " ") for tok, token_id in vocab.items()}
+
+
+def force_text(ids: list[int], text: str) -> list[int]:
+    ids.extend(llm_model.encode(text)[0])
 
 
 def parser() -> Paths:
@@ -81,6 +89,7 @@ def execute_prompts(input_data: list[str], functions_def: list[dict]):
         print(f"\nFinal: {decoded}")
 
 
+# Funkcja tolist() tworzy listę z torch.Tensor
 if __name__ == "__main__":
     llm_model = Small_LLM_Model()
     definitions_path, input_path, output_path = parser()
@@ -95,6 +104,20 @@ if __name__ == "__main__":
     with open(vocab_path, "r") as file:
         vocab = json.load(file)
 
-    print(vocab['{'])
+    reversed_vocab: dict[int, str] = build_vocab_id_str(vocab)
+    prompt: str = input_data[0]["prompt"]
 
-    execute_prompts(input_data[:1], functions_def)
+    final_prompt: str = build_final_prompt(prompt, functions_def)
+    response: str = final_prompt.splitlines()[-1]
+    ids: list[int] = llm_model.encode(final_prompt).tolist()[0]
+
+    names = [definition['name'] for definition in functions_def]
+    names_allowed_tokens = {letter for name in names for letter in name}
+    names_allowed_ids = [vocab[token] for token in names_allowed_tokens]
+
+    # print(names_allowed_tokens)
+    # print(names_allowed_ids)
+    # print(response)
+    print(vocab['fn'])
+
+    # execute_prompts(input_data[:1], functions_def)
