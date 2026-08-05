@@ -1,4 +1,5 @@
 import json
+import re
 from argparse import ArgumentParser
 from typing import NamedTuple
 
@@ -9,6 +10,7 @@ from llm_sdk import Small_LLM_Model
 Paths = tuple[str, str, str]
 Input = dict[str, str]
 StandardDict = dict[str, str]
+IdGroups = list[list[int]]
 
 
 class VocabularyData(NamedTuple):
@@ -48,6 +50,20 @@ def build_vocab_id_str(vocab: dict[str, int]) -> dict[int, str]:
     return {token_id: tok.replace("Ġ", " ") for tok, token_id in vocab.items()}
 
 
+def create_index_id_groups(
+    token_ids: IdGroups
+) -> IdGroups:
+
+    max_length: int = max(len(f) for f in token_ids)
+
+    index_id_groups: IdGroups = [
+        [] for _ in range(max_length)
+    ]
+
+    index_id_groups[0].extend(ids[0] for ids in token_ids)
+    return index_id_groups
+
+
 def execute_prompt(
     prompt: str,
     functions_def: StandardDict,
@@ -57,77 +73,67 @@ def execute_prompt(
     # Testing
     reverse_vocab = build_vocab_id_str(vocab)
 
-    prompt_ids: list[int] = llm_model.encode(prompt).tolist()[0]
     final_prompt: str = build_final_prompt(prompt, functions_def)
     final_prompt_ids: list[int] = llm_model.encode(final_prompt).tolist()[0]
 
-    functions_token_ids: list[list[int]] = [
+    functions_token_ids: IdGroups = [
         llm_model.encode(definition['name']).tolist()[0][1:]
         for definition in functions_def
     ]
-    max_function_length = max(len(f) for f in functions_token_ids)
 
-    function_token_groups: list[list[int]] = [
-        [] for _ in range(max_function_length)
-    ]
+    functions_index_id_groups: IdGroups = (
+        create_index_id_groups(functions_token_ids)
+    )
 
-    for function_ids in functions_token_ids:
-        function_token_groups[0].append(function_ids[0])
-
-    function_name_ids: list[int] = []
-    for position in range(len(function_token_groups)):
-        next_token_id: int = generate_next_token_id(
-            final_prompt_ids,
-            function_token_groups[position]
-        )
-
-        final_prompt_ids.append(next_token_id)
-        function_name_ids.append(next_token_id)
-
-        for index, function_ids in enumerate(functions_token_ids):
-            if (
-                position + 1 < len(function_ids)
-                and next_token_id == function_ids[position]
-            ):
-                token_id = function_ids[position + 1]
-                function_token_groups[position + 1].append(token_id)
-
-        response: str = llm_model.decode(final_prompt_ids).splitlines()[-1]
-
-        if (
-            position + 1 >= len(function_token_groups)
-            or function_token_groups[position + 1] == []
-        ):
-            break
+    function_name_ids: list[int] = predict_next_tokens(
+        functions_index_id_groups,
+        final_prompt_ids,
+        functions_token_ids
+    )
 
     function_arg: list[str] = extract_functions_arguments(
         function_name_ids,
         llm_model
     )
+    arguments_amount: int = len(function_arg)
 
-    force_text(final_prompt_ids, f'", "parameters": {{ "{function_arg[0]}": "')
+    force_text(final_prompt_ids, f'", "parameters": {{ "{function_arg[0]}": ')
 
-    next_token_id: int = generate_next_token_id(
-        final_prompt_ids,
-        prompt_ids
+    extracted_words_from_prompt: list[list[str]] = re.findall(r'\w+', prompt)
+    extracted_words_id_list: IdGroups = []
+
+    for word in extracted_words_from_prompt:
+        extracted_words_id_list.append(llm_model.encode(word).tolist()[0])
+
+    extracted_words_index_id_group: IdGroups = (
+        create_index_id_groups(extracted_words_id_list)
     )
 
-    final_prompt_ids.append(next_token_id)
-
-    if len(function_arg) == 1:
-        force_text(final_prompt_ids, '" }}')
-    else:
-        force_text(final_prompt_ids, f'", {function_arg[1]}: "')
-
-        next_token_id: int = generate_next_token_id(
+    for i in range(arguments_amount):
+        predict_next_tokens(
+            extracted_words_index_id_group,
             final_prompt_ids,
-            prompt_ids
+            extracted_words_id_list
         )
-        final_prompt_ids.append(next_token_id)
 
-        force_text(final_prompt_ids, '" }')
+        if i + 1 < arguments_amount:
+            force_text(
+                final_prompt_ids, f', "{function_arg[i + 1]}": '
+            )
 
-    response: str = llm_model.decode(final_prompt_ids).splitlines()[-1]
+    force_text(final_prompt_ids, ' }')
+
+    # Nalezy rowniez wyciagnac typ arugmentu, zeby wiedziec czy przypisujemy mu
+    # nawiasy "" czy tez nie - string czy int
+
+    # Pamiętaj, ze parametr moze sie skladac z kilku tokenow!
+
+    print_ids(final_prompt_ids)
+
+
+def print_ids(idList: list[int]) -> None:
+    response: str = llm_model.decode(idList).splitlines()[-1]
+
     print(response)
 
 
@@ -182,6 +188,39 @@ def extract_functions_arguments(
     return function_arg
 
 
+def predict_next_tokens(
+    index_id_groups: IdGroups,
+    final_prompt_ids: list[int],
+    token_ids: IdGroups
+) -> list[int]:
+    ids: list[int] = []
+
+    for position in range(len(index_id_groups)):
+        next_token_id: int = generate_next_token_id(
+            final_prompt_ids,
+            index_id_groups[position]
+        )
+
+        final_prompt_ids.append(next_token_id)
+        ids.append(next_token_id)
+
+        for function_ids in token_ids:
+            if (
+                position + 1 < len(function_ids)
+                and next_token_id == function_ids[position]
+            ):
+                token_id = function_ids[position + 1]
+                index_id_groups[position + 1].append(token_id)
+
+        if (
+            position + 1 >= len(index_id_groups)
+            or index_id_groups[position + 1] == []
+        ):
+            break
+
+    return ids
+
+
 def read_files(vocab_path: str) -> VocabularyData:
     definitions_path, input_path, output_path = parser()
 
@@ -208,4 +247,4 @@ if __name__ == "__main__":
     for input in input_data:
         execute_prompt(input['prompt'], functions_def, llm_model, vocab)
 
-    # execute_prompt(input_data[-1]['prompt'], functions_def, llm_model, vocab)
+    # execute_prompt(input_data[1]['prompt'], functions_def, llm_model, vocab)
